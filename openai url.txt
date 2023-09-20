@@ -1,0 +1,123 @@
+app/store/chat.ts  312 lines
+import { api, RequestMessage } from "../client/api";k
+        api.llm.chat({
+          messages: sendMessages,
+          config: { ...modelConfig, stream: true },
+          onUpdate(message) {
+            botMessage.streaming = true;
+            if (message) {
+              botMessage.content = message;
+            }
+            get().updateCurrentSession((session) => {
+              session.messages = session.messages.concat();
+            });
+          },
+          onFinish(message) {
+            botMessage.streaming = false;
+            if (message) {
+              botMessage.content = message;
+              get().onNewMessage(botMessage);
+            }
+            ChatControllerPool.remove(session.id, botMessage.id);
+          },
+          onError(error) {
+            const isAborted = error.message.includes("aborted");
+            botMessage.content =
+              "\n\n" +
+              prettyObject({
+                error: true,
+                message: error.message,
+              });
+            botMessage.streaming = false;
+            userMessage.isError = !isAborted;
+            botMessage.isError = !isAborted;
+            get().updateCurrentSession((session) => {
+              session.messages = session.messages.concat();
+            });
+            ChatControllerPool.remove(
+              session.id,
+              botMessage.id ?? messageIndex,
+            );
+
+            console.error("[Chat] failed ", error);
+          },
+          onController(controller) {
+            // collect controller for stop/retry
+            ChatControllerPool.addController(
+              session.id,
+              botMessage.id ?? messageIndex,
+              controller,
+            );
+          },
+        });
+
+import { ChatGPTApi } from "./platforms/openai";
+
+export class ClientApi { // this is just for openAI
+  public llm: LLMApi;
+
+  constructor() {
+    this.llm = new ChatGPTApi();
+  }
+
+  config() {}
+
+  prompts() {}
+
+  masks() {}
+
+  async share(messages: ChatMessage[], avatarUrl: string | null = null) {
+    const msgs = messages
+      .map((m) => ({
+        from: m.role === "user" ? "human" : "gpt",
+        value: m.content,
+      }))
+      .concat([
+        {
+          from: "human",
+          value:
+            "Share from [ChatGPT Next Web]: https://github.com/Yidadaa/ChatGPT-Next-Web",
+        },
+      ]);
+    // 敬告二开开发者们，为了开源大模型的发展，请不要修改上述消息，此消息用于后续数据清洗使用
+    // Please do not modify this message
+
+    console.log("[Share]", messages, msgs);
+    const clientConfig = getClientConfig();
+    const proxyUrl = "/sharegpt";
+    const rawUrl = "https://sharegpt.com/api/conversations";
+    const shareUrl = clientConfig?.isApp ? rawUrl : proxyUrl;
+    const res = await fetch(shareUrl, {
+      body: JSON.stringify({
+        avatarUrl,
+        items: msgs,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    const resJson = await res.json();
+    console.log("[Share]", resJson);
+    if (resJson.id) {
+      return `https://shareg.pt/${resJson.id}`;
+    }
+  }
+}		
+import {
+  DEFAULT_API_HOST,
+  DEFAULT_MODELS,
+  OpenaiPath,
+  REQUEST_TIMEOUT_MS,
+} from "@/app/constant";
+
+import {
+  EventStreamContentType,
+  fetchEventSource,
+} from "@fortaine/fetch-event-source";
+
+api
+/api/openai/v1/chat/completions
+
+-how to catch the sentence from google.
